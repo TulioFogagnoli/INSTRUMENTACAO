@@ -5,11 +5,18 @@
 #include <HCSR04.h>
 #include <Wire.h> //Biblioteca utilizada gerenciar a comunicação entre dispositicos através do protocolo I2C
 #include <LiquidCrystal_I2C.h> //Biblioteca controlar display 16x2 através do I2C
+#include <SPI.h> //INCLUSÃO DE BIBLIOTECA
+#include <MFRC522.h> //INCLUSÃO DE BIBLIOTECA
+
 
 Neotimer sensor1;
 Neotimer trig1;
 Neotimer trig2;
 
+/* --------- RFID --------------*/
+#define SS_PIN 10 //PINO SDA
+#define RST_PIN 9 //PINO DE RESET
+MFRC522 rfid(SS_PIN, RST_PIN); //PASSAGEM DE PARÂMETROS REFERENTE AOS PINOS
 
 /* ---------- GYRO ----------- */
 #define MPU6050_ADDR         0x68 // ENDEREÇO QUANDO O PINO AD0 ESTIVER LIGADO AO GND
@@ -22,24 +29,22 @@ float anguloZ;
 float temp;
 unsigned long controleTempo;
 
-
-
 /* ---------- DISPLAY E ULTRASSOM ------------- */
 #define col  16 //Define o número de colunas do display utilizado
 #define lin   2 //Define o número de linhas do display utilizado
 #define ende  0x27 //Define o endereço do display
 LiquidCrystal_I2C lcd(ende, col, lin); 
-#define TRIGGER   8
-#define ECHO      9
+#define TRIGGER   A3
+#define ECHO      A2
 Ultrasonic ultrasonic(TRIGGER,ECHO);
 int distancia; 
 String result; 
 
 /* ---------- PONTE H -------- */
-#define in1 10                      
-#define in2 11
-#define in3 12
-#define in4 13
+#define in1 4                   
+#define in2 5
+#define in3 6
+#define in4 7
 int Speed = 200;
 int Speedsec;
 int buttonState = 0;
@@ -55,7 +60,7 @@ int dadoBluetooth = 0;
 SoftwareSerial bluetooth(pinoRX, pinoTX);
 
 /* ----------- IR ------------ */
-const int pinIR = 7;
+const int pinIR = 8;
 int IR;
 
 void setup() {
@@ -71,6 +76,9 @@ void setup() {
   lcd.print("iniciando...");
   lcd.clear();
   lcd.display();
+
+  SPI.begin(); //INICIALIZA O BARRAMENTO SPI
+  rfid.PCD_Init(); //INICIALIZA MFRC522
 
   Wire.begin();
   mpu6050.begin();
@@ -101,6 +109,7 @@ void loop() {
   lcd.clear();
   hcsr04();
   mpu6050.update();
+  frfid();
 
   anguloX = mpu6050.getAngleX();
   anguloY = mpu6050.getAngleY();
@@ -241,3 +250,24 @@ void hcsr04(){
     result = String(distancia); //VARIÁVEL GLOBAL DO TIPO STRING RECEBE A DISTÂNCIA(CONVERTIDO DE INTEIRO PARA STRING)
  }
 
+void frfid(){
+  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) //VERIFICA SE O CARTÃO PRESENTE NO LEITOR É DIFERENTE DO ÚLTIMO CARTÃO LIDO. CASO NÃO SEJA, FAZ
+    return; //RETORNA PARA LER NOVAMENTE
+
+  /***INICIO BLOCO DE CÓDIGO RESPONSÁVEL POR GERAR A TAG RFID LIDA***/
+  String strID = "";
+  for (byte i = 0; i < 4; i++) {
+    strID +=
+    (rfid.uid.uidByte[i] < 0x10 ? "0" : "") +
+    String(rfid.uid.uidByte[i], HEX) +
+    (i!=3 ? ":" : "");
+  }
+  strID.toUpperCase();
+  /***FIM DO BLOCO DE CÓDIGO RESPONSÁVEL POR GERAR A TAG RFID LIDA***/
+
+  Serial.print("Identificador (UID) da tag: "); //IMPRIME O TEXTO NA SERIAL
+  Serial.println(strID); //IMPRIME NA SERIAL O UID DA TAG RFID
+
+  rfid.PICC_HaltA(); //PARADA DA LEITURA DO CARTÃO
+  rfid.PCD_StopCrypto1(); //PARADA DA CRIPTOGRAFIA NO PCD
+}
