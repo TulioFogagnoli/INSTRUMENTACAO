@@ -8,14 +8,18 @@
 #include <SPI.h> //INCLUSÃO DE BIBLIOTECA
 #include <MFRC522.h> //INCLUSÃO DE BIBLIOTECA
 
-
+/* -------- TEMPO ----------*/
 Neotimer sensor1;
 Neotimer trig1;
 Neotimer trig2;
+Neotimer tbuzzer;
+
+/*--------- BUZZER ---------*/
+#define buzzer 7
 
 /* --------- RFID --------------*/
 #define SS_PIN 10 //PINO SDA
-#define RST_PIN 9 //PINO DE RESET
+#define RST_PIN 4 //PINO DE RESET
 MFRC522 rfid(SS_PIN, RST_PIN); //PASSAGEM DE PARÂMETROS REFERENTE AOS PINOS
 
 /* ---------- GYRO ----------- */
@@ -39,12 +43,12 @@ LiquidCrystal_I2C lcd(ende, col, lin);
 Ultrasonic ultrasonic(TRIGGER,ECHO);
 int distancia; 
 String result; 
-
+int alvo = 30;
 /* ---------- PONTE H -------- */
-#define in1 4                   
-#define in2 5
-#define in3 6
-#define in4 7
+#define in1 5                   
+#define in2 6
+#define in3 9
+#define in4 3
 int Speed = 200;
 int Speedsec;
 int buttonState = 0;
@@ -55,17 +59,17 @@ int brkonoff = 1;
 
 /* ---------- BLUETOOTH -------- */
 const int pinoRX = 2;  //PINO DIGITAL 2 (RX)
-const int pinoTX = 3;  //PINO DIGITAL 3 (TX)
+const int pinoTX = 8;  //PINO DIGITAL 3 (TX)
 int dadoBluetooth = 0;
 SoftwareSerial bluetooth(pinoRX, pinoTX);
 
 /* ----------- IR ------------ */
-const int pinIR = 8;
+const int pinIR = A1;
 int IR;
 
 void setup() {
-    Serial.begin(9600);
-
+  Serial.begin(9600);
+  tbuzzer.set(3000);
   sensor1.set(200);
   trig1.set(2);
   trig2.set(10);
@@ -101,15 +105,15 @@ void setup() {
   bluetooth.print("$");   //IMPRIME O CARACTERE
   bluetooth.print("$");   //IMPRIME O CARACTERE
 
-  delay(500);
+  delay(1000);
 }
 
 void loop() {
   if(sensor1.repeat()){
+  frfid();
   lcd.clear();
   hcsr04();
   mpu6050.update();
-  frfid();
 
   anguloX = mpu6050.getAngleX();
   anguloY = mpu6050.getAngleY();
@@ -123,8 +127,17 @@ void loop() {
   Serial.print("   |   ");
   Serial.println(temp);
 
-  if(digitalRead(pinIR) == LOW){ IR = 0;}
-  if(digitalRead(pinIR) == HIGH){ IR = 1;}
+  if(digitalRead(pinIR) == LOW)
+  {
+    IR = 0;
+  }
+
+  if(digitalRead(pinIR) == HIGH)
+  {
+    findtag();
+    IR = 1;
+  }
+
   lcd.setCursor(0,0);
   lcd.print(result);    //Exibe no display as medidas
   lcd.print("cm");
@@ -134,8 +147,6 @@ void loop() {
   lcd.print(temp);
   lcd.setCursor(0,1);
   lcd.print(anguloX);
-  //lcd.setCursor(6,1);
-  //lcd.print(anguloY);
   lcd.setCursor(7,1);
   lcd.print(anguloZ);
   }
@@ -176,20 +187,35 @@ void loop() {
       Serial.println("backright");
       backright();
     }
-    if (dadoBluetooth == '0') { Speed = 100; }
-    if (dadoBluetooth == '1') { Speed = 120; }
-    if (dadoBluetooth == '2') { Speed = 140; }
-    if (dadoBluetooth == '3') { Speed = 160; }
-    if (dadoBluetooth == '4') { Speed = 170; }
-    if (dadoBluetooth == '5') { Speed = 180; }
-    if (dadoBluetooth == '6') { Speed = 190; }
-    if (dadoBluetooth == '7') { Speed = 200; }
-    if (dadoBluetooth == '8') { Speed = 215; }
-    if (dadoBluetooth == '9') { Speed = 235; }
+    if (dadoBluetooth == '0') { Speed = 50; }
+    if (dadoBluetooth == '1') { Speed = 60; }
+    if (dadoBluetooth == '2') { Speed = 70; }
+    if (dadoBluetooth == '3') { Speed = 80; }
+    if (dadoBluetooth == '4') { Speed = 90; }
+    if (dadoBluetooth == '5') { Speed = 100; }
+    if (dadoBluetooth == '6') { Speed = 130; }
+    if (dadoBluetooth == '7') { Speed = 160; }
+    if (dadoBluetooth == '8') { Speed = 190; }
+    if (dadoBluetooth == '9') { Speed = 210; }
     if (dadoBluetooth == 'q') { Speed = 255; }
 
   }
+}
 
+void rightless(){
+  for(Speed = 100; Speed >= 50 ; Speed--)
+  {  
+    analogWrite(in2, Speed);
+    analogWrite(in4, Speed);
+  }
+}
+
+void forwardless(){
+  for(Speed = 100; Speed >= 50 ; Speed--)
+  {
+    analogWrite(in3, Speed);
+    analogWrite(in2, Speed);
+  }
 }
 
 void forward() {
@@ -203,29 +229,35 @@ void back() {
 }
 
 void left() {
-  analogWrite(in3, Speed);
-  analogWrite(in2, Speed);
+  analogWrite(in4, Speed);
+  analogWrite(in1, Speed);
+
 }
 
 void right() {
-  analogWrite(in4, Speed);
-  analogWrite(in1, Speed);
+  analogWrite(in3, Speed);
+  analogWrite(in2, Speed);
+
 }
 void forwardleft() {
-  analogWrite(in1, Speedsec);
-  analogWrite(in3, Speed);
-}
-void forwardright() {
   analogWrite(in1, Speed);
   analogWrite(in3, Speedsec);
+
+}
+void forwardright() {
+  analogWrite(in1, Speedsec);
+  analogWrite(in3, Speed);
+
 }
 void backright() {
-  analogWrite(in2, Speed);
-  analogWrite(in4, Speedsec);
-}
-void backleft() {
   analogWrite(in2, Speedsec);
   analogWrite(in4, Speed);
+
+}
+void backleft() {
+  analogWrite(in2, Speed);
+  analogWrite(in4, Speedsec);
+
 }
 
 void Stop() {
@@ -251,8 +283,8 @@ void hcsr04(){
  }
 
 void frfid(){
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) //VERIFICA SE O CARTÃO PRESENTE NO LEITOR É DIFERENTE DO ÚLTIMO CARTÃO LIDO. CASO NÃO SEJA, FAZ
-    return; //RETORNA PARA LER NOVAMENTE
+ if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) //VERIFICA SE O CARTÃO PRESENTE NO LEITOR É DIFERENTE DO ÚLTIMO CARTÃO LIDO. CASO NÃO SEJA, FAZ
+   return; //RETORNA PARA LER NOVAMENTE
 
   /***INICIO BLOCO DE CÓDIGO RESPONSÁVEL POR GERAR A TAG RFID LIDA***/
   String strID = "";
@@ -267,7 +299,37 @@ void frfid(){
 
   Serial.print("Identificador (UID) da tag: "); //IMPRIME O TEXTO NA SERIAL
   Serial.println(strID); //IMPRIME NA SERIAL O UID DA TAG RFID
-
+ 
+  tone(buzzer, 600, 300);
+  
   rfid.PICC_HaltA(); //PARADA DA LEITURA DO CARTÃO
   rfid.PCD_StopCrypto1(); //PARADA DA CRIPTOGRAFIA NO PCD
+}
+
+void findtag(){
+      int aux_x,aux_y,last_x,last_y,dif_x,dif_y;
+    last_x = anguloX;
+    last_y = anguloY;
+    while(distancia >= alvo){
+      rightless();
+      hcsr04();
+      mpu6050.update();
+    }
+    Stop();
+    aux_x = mpu6050.getAngleX();
+    aux_y = mpu6050.getAngleY();
+    dif_x = aux_x - last_x;
+    dif_x = aux_x - last_x;
+
+    Serial.print(dif_x);
+    Serial.print("  |  ");
+    Serial.println(dif_y);
+
+    while(distancia >= 5){
+      forwardless();
+      hcsr04();
+      mpu6050.update();
+    }
+    Stop();
+
 }

@@ -20,10 +20,10 @@
 // String result; 
 
 /* ---------- PONTE H -------- */
-#define in1 10                      
-#define in2 11
-#define in3 12
-#define in4 13
+#define in1 5                      
+#define in2 6
+#define in3 9
+#define in4 10
 int Speed = 200;
 int Speedsec;
 int buttonState = 0;
