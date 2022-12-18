@@ -7,7 +7,7 @@
 #include <LiquidCrystal_I2C.h> //Biblioteca controlar display 16x2 através do I2C
 #include <SPI.h> //INCLUSÃO DE BIBLIOTECA
 #include <MFRC522.h> //INCLUSÃO DE BIBLIOTECA
-
+int flag;
 /* -------- TEMPO ----------*/
 Neotimer sensor1;
 Neotimer trig1;
@@ -43,7 +43,7 @@ LiquidCrystal_I2C lcd(ende, col, lin);
 Ultrasonic ultrasonic(TRIGGER,ECHO);
 int distancia; 
 String result; 
-int alvo = 30;
+
 /* ---------- PONTE H -------- */
 #define in1 5                   
 #define in2 6
@@ -109,15 +109,17 @@ void setup() {
 }
 
 void loop() {
+  bluetooth.listen();
   if(sensor1.repeat()){
-  frfid();
   lcd.clear();
   hcsr04();
+  frfid();
+
   mpu6050.update();
 
-  anguloX = mpu6050.getAngleX();
-  anguloY = mpu6050.getAngleY();
-  anguloZ = mpu6050.getAngleZ();
+  anguloX = mpu6050.getGyroAngleX();
+  anguloY = mpu6050.getGyroAngleY();
+  anguloZ = mpu6050.getGyroAngleZ();
   temp = mpu6050.getTemp();
   Serial.print(anguloX);
   Serial.print("   |   ");
@@ -129,12 +131,13 @@ void loop() {
 
   if(digitalRead(pinIR) == LOW)
   {
+    flag = 0;
     IR = 0;
   }
 
   if(digitalRead(pinIR) == HIGH)
   {
-    findtag();
+    if(flag==0){findtag();}
     IR = 1;
   }
 
@@ -203,18 +206,18 @@ void loop() {
 }
 
 void rightless(){
-  for(Speed = 100; Speed >= 50 ; Speed--)
+  for(Speed = 35; Speed >= 30 ; Speed--)
   {  
+    analogWrite(in3, Speed);
     analogWrite(in2, Speed);
-    analogWrite(in4, Speed);
   }
 }
 
 void forwardless(){
-  for(Speed = 100; Speed >= 50 ; Speed--)
+  for(Speed = 80; Speed >= 30 ; Speed--)
   {
+    analogWrite(in1, Speed);
     analogWrite(in3, Speed);
-    analogWrite(in2, Speed);
   }
 }
 
@@ -298,38 +301,53 @@ void frfid(){
   /***FIM DO BLOCO DE CÓDIGO RESPONSÁVEL POR GERAR A TAG RFID LIDA***/
 
   Serial.print("Identificador (UID) da tag: "); //IMPRIME O TEXTO NA SERIAL
-  Serial.println(strID); //IMPRIME NA SERIAL O UID DA TAG RFID
- 
-  tone(buzzer, 600, 300);
-  
+  Serial.println(strID); //IMPRIME NA SERIAL O UID DA TAG RFID   
   rfid.PICC_HaltA(); //PARADA DA LEITURA DO CARTÃO
   rfid.PCD_StopCrypto1(); //PARADA DA CRIPTOGRAFIA NO PCD
+  tone(buzzer, 600, 300);  
 }
 
 void findtag(){
-      int aux_x,aux_y,last_x,last_y,dif_x,dif_y;
-    last_x = anguloX;
-    last_y = anguloY;
+      float aux_x,aux_z,last_x,last_z,dif_x,dif_z;
+      int alvo = 45;
+    bluetooth.stopListening();
+    flag=1;
+    last_z = mpu6050.getGyroAngleZ();
+    analogWrite(in1, 30);
+    analogWrite(in3, 30);
+    delay(1500);
+    Stop();
+    lcd.clear();
     while(distancia >= alvo){
       rightless();
       hcsr04();
-      mpu6050.update();
+      Stop();
+      lcd.setCursor(0,0);
+      lcd.print(distancia);
     }
     Stop();
-    aux_x = mpu6050.getAngleX();
-    aux_y = mpu6050.getAngleY();
-    dif_x = aux_x - last_x;
-    dif_x = aux_x - last_x;
+    delay(300);
 
-    Serial.print(dif_x);
-    Serial.print("  |  ");
-    Serial.println(dif_y);
+    while(distancia >= 8){
+      analogWrite(in1, 38);
+      analogWrite(in3, 30);
 
-    while(distancia >= 5){
-      forwardless();
       hcsr04();
       mpu6050.update();
+      frfid();
     }
     Stop();
+    frfid();
+    delay(1000);
 
+    analogWrite(in2, 30);
+    analogWrite(in4, 30);
+    delay(500);
+    Stop();
+    delay(300);
+
+    analogWrite(in2, 30);
+    analogWrite(in4, 30);
+    delay(2500);
+    Stop();
 }
